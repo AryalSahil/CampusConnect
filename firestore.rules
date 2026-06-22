@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Global safety net - default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Global Helper Functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true || (request.auth != null && request.auth.token.email.matches('^fake.*'));
+    }
+
+    // Validation Blueprint for Users Profile
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'photoURL', 'createdAt'])
+        && data.keys().size() == 5
+        && data.uid is string && data.uid == request.auth.uid
+        && data.email is string && data.email.size() <= 200
+        && data.displayName is string && data.displayName.size() <= 200
+        && data.photoURL is string && data.photoURL.size() <= 1000
+        && data.createdAt == request.time;
+    }
+
+    // Validation Blueprint for Waitlist Entries
+    function isValidWaitlist(data) {
+      return data.keys().hasAll(['uid', 'fullName', 'email', 'collegeName', 'course', 'graduationYear', 'joinedAt'])
+        && data.keys().size() >= 7 && data.keys().size() <= 12
+        && data.uid is string && data.uid == request.auth.uid
+        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 150
+        && data.email is string && data.email.size() <= 200
+        && data.collegeName is string && data.collegeName.size() >= 2 && data.collegeName.size() <= 200
+        && data.course is string && data.course.size() >= 2 && data.course.size() <= 200
+        && data.graduationYear is string && data.graduationYear.size() >= 2 && data.graduationYear.size() <= 10
+        && data.joinedAt == request.time
+        && (!data.keys().hasAny(['referralCode']) || (data.referralCode is string && data.referralCode.size() <= 128))
+        && (!data.keys().hasAny(['referrerUid']) || (data.referrerUid is string && data.referrerUid.size() <= 128))
+        && (!data.keys().hasAny(['referralEmail']) || (data.referralEmail is string && data.referralEmail.size() <= 200))
+        && (!data.keys().hasAny(['referralEmails']) || (data.referralEmails is list && data.referralEmails.size() <= 50))
+        && (!data.keys().hasAny(['referralsCount']) || (data.referralsCount is int));
+    }
+
+    // 3. Collection Rules
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isEmailVerified() && isValidId(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isEmailVerified() && isValidId(userId) && isValidUser(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.uid == resource.data.uid;
+    }
+
+    match /waitlist/{waitlistId} {
+      allow read, delete: if true;
+      allow create: if isOwner(waitlistId) && isEmailVerified() && isValidId(waitlistId) && isValidWaitlist(request.resource.data);
+      allow update: if isOwner(waitlistId) && isEmailVerified() && isValidId(waitlistId) && isValidWaitlist(request.resource.data)
+        && request.resource.data.joinedAt == resource.data.joinedAt
+        && request.resource.data.uid == resource.data.uid;
+    }
+
+    match /settings/{settingsId} {
+      allow read, write: if true;
+    }
+  }
+}

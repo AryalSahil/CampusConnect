@@ -1,0 +1,6 @@
+{
+  "name": "Campus Connect Landing Page",
+  "description": "A premium, modern Gen-Z style Coming Soon landing page for Campus Connect with verified Google waitlist sign-ups via Firestore and beautiful interactive mockup panels.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile",
+      "description": "User profile stored after Google sign-in.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique Firebase Auth UID of the user."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "User display name."
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "User profile picture URL."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the user account was created in the database."
+        }
+      },
+      "required": ["uid", "email", "displayName", "createdAt"]
+    },
+    "waitlist": {
+      "title": "Waitlist Registration",
+      "description": "Registration details for students who join the waitlist.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The Firebase Auth UID of the registered student."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "The student's full name."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The student's college email."
+        },
+        "collegeName": {
+          "type": "string",
+          "description": "Name of the college or university."
+        },
+        "course": {
+          "type": "string",
+          "description": "Course or major of study."
+        },
+        "graduationYear": {
+          "type": "string",
+          "description": "The expected graduation year."
+        },
+        "joinedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when they joined the waitlist."
+        },
+        "referralCode": {
+          "type": "string",
+          "description": "Unique waitlist referral code for the user."
+        },
+        "referrerUid": {
+          "type": "string",
+          "description": "The UID of the user who referred this sign-up."
+        },
+        "referralEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Email address of friend referred during registration."
+        },
+        "referralEmails": {
+          "type": "array",
+          "description": "List of emails of friends referred after registration."
+        },
+        "referralsCount": {
+          "type": "integer",
+          "description": "The number of referred friends."
+        }
+      },
+      "required": ["uid", "fullName", "email", "collegeName", "course", "graduationYear", "joinedAt"]
+    },
+    "settings": {
+      "title": "System Settings",
+      "description": "System toggles such as maintenance mode status and launching timers.",
+      "type": "object",
+      "properties": {
+        "maintenanceMode": {
+          "type": "boolean",
+          "description": "True if the application landing page is in lock-down maintenance style."
+        },
+        "targetLaunchDate": {
+          "type": "string",
+          "description": "ISO date-time or formatted string for the launch countdown target timer."
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "Store individual student profile definitions."
+    },
+    "/waitlist/{waitlistId}": {
+      "schema": "waitlist",
+      "description": "Store individual student waitlist details."
+    },
+    "/settings/{settingsId}": {
+      "schema": "settings",
+      "description": "System settings configuration documents."
+    }
+  }
+}

@@ -1,0 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=Bowlby+One&family=Inter:wght@300;400;500;600;700;800&family=Oswald:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Bowlby One", cursive, sans-serif;
+  --font-sans: "Inter", sans-serif;
+  --font-condensed: "Oswald", sans-serif;
+
+  --color-paper: #F4EBD7;
+  --color-ink: #1A1108;
+  --color-gold: #C9A227;
+  --color-gold-hover: #B28F1F;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-paper);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-gold);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold-hover);
+}
