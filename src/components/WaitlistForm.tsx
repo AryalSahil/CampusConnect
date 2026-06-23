@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { signInWithPopup, onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
-import { auth, db, googleProvider, handleFirestoreError } from '../lib/firebase';
+import { auth, db, googleProvider, handleFirestoreError, getFriendlyAuthErrorMessage, checkDomainAuthorizationStatus } from '../lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { ShieldCheck, LogOut, ArrowRight, CheckCircle2, Copy, Sparkles, Send, Share2, Award, Users } from 'lucide-react';
 import { UserProfile, WaitlistRegistration } from '../types';
 import confetti from 'canvas-confetti';
+import EmailTemplateStation from './EmailTemplateStation';
 
 interface WaitlistFormProps {
   onSuccessSubmit?: (spotNumber: number) => void;
@@ -35,6 +36,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
 
   // Form Validation and Status
   const [formError, setFormError] = useState<string | null>(null);
+  const [domainWarning, setDomainWarning] = useState<string | null>(null);
 
   // Real-time listener for user's waitlist record
   const checkWaitlistStatus = (currentUser: User) => {
@@ -77,6 +79,13 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
 
   useEffect(() => {
     let unsubWaitlist: (() => void) | null = null;
+    
+    // Check if domain is authorized in Firebase Auth
+    const status = checkDomainAuthorizationStatus();
+    if (status.warningMessage) {
+      setDomainWarning(status.warningMessage);
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -120,7 +129,8 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
       await checkWaitlistStatus(currentUser);
     } catch (err: any) {
       console.error('Sign-In Error:', err);
-      setFormError(err.message || 'Failed to sign in. Please try again.');
+      const friendlyMessage = getFriendlyAuthErrorMessage(err);
+      setFormError(friendlyMessage);
       setLoading(false);
     }
   };
@@ -205,6 +215,26 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
         referralEmails: finalReferralEmail ? [finalReferralEmail] : [],
         referralsCount: finalReferralEmail ? 1 : 0
       });
+
+      // Trigger premium welcome email via custom full-stack backend
+      fetch('/api/send-welcome-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: registrationPayload.email,
+          fullName: registrationPayload.fullName,
+          collegeName: registrationPayload.collegeName,
+          course: registrationPayload.course,
+          graduationYear: registrationPayload.graduationYear,
+          referralCode: registrationPayload.referralCode
+        })
+      }).then(res => res.json())
+        .then(resData => {
+          console.log('[Email Trigger Result]:', resData);
+        })
+        .catch(emailError => {
+          console.warn('[Email Trigger Service Warning]: Could not trigger welcome email:', emailError);
+        });
 
       // Trigger a beautiful multi-burst celebratory confetti blast
       try {
@@ -345,8 +375,14 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
             </p>
 
             {formError && (
-              <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-700 font-medium px-4 py-2.5 rounded-lg mb-4 text-left w-full">
+              <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-700 font-medium px-4 py-2.5 rounded-lg mb-4 text-left w-full whitespace-pre-line">
                 {formError}
+              </div>
+            )}
+
+            {domainWarning && !formError && (
+              <div className="text-[11px] bg-amber-500/10 border border-amber-500/30 text-amber-800 font-medium px-4 py-2.5 rounded-lg mb-4 text-left w-full">
+                ⚠️ {domainWarning}
               </div>
             )}
 
@@ -688,6 +724,13 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
                 </div>
               )}
             </div>
+
+            {/* Live Interactive Email Generation Dashboard */}
+            <EmailTemplateStation 
+              user={user} 
+              waitlistRecord={waitlistRecord} 
+              myWaitlistNumber={myWaitlistNumber} 
+            />
 
             <div className="flex items-center gap-4 w-full justify-between">
               <button

@@ -39,11 +39,35 @@ import AdminPanel from './components/AdminPanel';
 import IndiaMap from './components/IndiaMap';
 import TopCampuses from './components/TopCampuses';
 
+import avatarAnanya from './assets/images/indian_student_avatar_1782091046623.jpg';
+import avatarAarav from './assets/images/student_mr_fresher_1782092440055.jpg';
+import avatarMeera from './assets/images/student_red_cap_1782092477821.jpg';
+
+const defaultAvatarAnanya = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200";
+const defaultAvatarAarav = "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200";
+const defaultAvatarMeera = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200";
+
+const avatarFallbacks: Record<string, string> = {
+  ananya: defaultAvatarAnanya,
+  aarav: defaultAvatarAarav,
+  meera: defaultAvatarMeera
+};
+
 export default function App() {
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [showAdminConsole, setShowAdminConsole] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  
+  const handleAvatarLoadError = (e: React.SyntheticEvent<HTMLImageElement, Event>, avatarKey: string) => {
+    const backup = avatarFallbacks[avatarKey];
+    const target = e.currentTarget;
+    if (backup && !target.src.includes('avatar') && !target.src.includes('dicebear')) {
+      target.src = backup;
+    } else {
+      target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarKey}`;
+    }
+  };
   
   // Custom states for dynamic college filter and lo-fi audio player
   const [selectedCampus, setSelectedCampus] = useState<'all' | 'du' | 'iitb' | 'ashoka' | 'christ'>('all');
@@ -403,9 +427,9 @@ export default function App() {
               className="mt-8 flex items-center gap-3"
             >
               <div className="flex -space-x-3">
-                <img className="w-8 h-8 rounded-full border-2 border-[#1A1108] object-cover" src="/src/assets/images/indian_student_avatar_1782091046623.jpg" alt="avatar" />
-                <img className="w-8 h-8 rounded-full border-2 border-[#1A1108] object-cover" src="/src/assets/images/student_mr_fresher_1782092440055.jpg" alt="avatar" />
-                <img className="w-8 h-8 rounded-full border-2 border-[#1A1108] object-cover" src="/src/assets/images/student_red_cap_1782092477821.jpg" alt="avatar" />
+                <img className="w-8 h-8 rounded-full border-2 border-[#1A1108] object-cover" src={avatarAnanya} alt="avatar" onError={(e) => handleAvatarLoadError(e, 'ananya')} />
+                <img className="w-8 h-8 rounded-full border-2 border-[#1A1108] object-cover" src={avatarAarav} alt="avatar" onError={(e) => handleAvatarLoadError(e, 'aarav')} />
+                <img className="w-8 h-8 rounded-full border-2 border-[#1A1108] object-cover" src={avatarMeera} alt="avatar" onError={(e) => handleAvatarLoadError(e, 'meera')} />
               </div>
               <p className="text-xs font-condensed tracking-wider font-extrabold uppercase text-[#1A1108]/70">
                 ⭐ Rated 4.9/5 by 300+ Beta Testers
@@ -948,19 +972,19 @@ export default function App() {
                 quote: "Campus Connect bypassed all the standard social noise! The strict verification gave me perfect confidence to coordinate verified partners across IIT Bombay, IIT Delhi, and BITS for hackathons & events.",
                 author: "Ananya Sen",
                 meta: "IIT Bombay Class of '27 • CS Major",
-                image: "/src/assets/images/indian_student_avatar_1782091046623.jpg"
+                image: avatarAnanya
               },
               {
                 quote: "Absolutely changed campus life. Verification is bulletproof, meaning zero bots or commercial spam. Discovering shared music & coding circles across collegiate hubs is beautifully seamless.",
                 author: "Aarav Mehta",
                 meta: "BITS Pilani Class of '26 • Mech Major",
-                image: "/src/assets/images/student_mr_fresher_1782092440055.jpg"
+                image: avatarAarav
               },
               {
                 quote: "The interface is absolute world class! It's incredibly refreshing to bypass massive public chats and immediately find other college girls sharing my literary & acoustic music passions.",
                 author: "Meera Raghavan",
                 meta: "Delhi University Class of '28 • Econ & Design Major",
-                image: "/src/assets/images/student_red_cap_1782092477821.jpg"
+                image: avatarMeera
               }
             ].map((test, index) => (
               <motion.div
@@ -985,6 +1009,7 @@ export default function App() {
                     alt={test.author}
                     referrerPolicy="no-referrer"
                     className="w-10 h-10 rounded-full border border-neutral-700 object-cover"
+                    onError={(e) => handleAvatarLoadError(e, test.author.toLowerCase().includes('ananya') ? 'ananya' : test.author.toLowerCase().includes('aarav') ? 'aarav' : 'meera')}
                   />
                   <div>
                     <h5 className="font-condensed font-extrabold text-xs uppercase text-white tracking-wider">

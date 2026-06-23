@@ -45,7 +45,6 @@ service cloud.firestore {
         && data.collegeName is string && data.collegeName.size() >= 2 && data.collegeName.size() <= 200
         && data.course is string && data.course.size() >= 2 && data.course.size() <= 200
         && data.graduationYear is string && data.graduationYear.size() >= 2 && data.graduationYear.size() <= 10
-        && data.joinedAt == request.time
         && (!data.keys().hasAny(['referralCode']) || (data.referralCode is string && data.referralCode.size() <= 128))
         && (!data.keys().hasAny(['referrerUid']) || (data.referrerUid is string && data.referrerUid.size() <= 128))
         && (!data.keys().hasAny(['referralEmail']) || (data.referralEmail is string && data.referralEmail.size() <= 200))
@@ -64,8 +63,11 @@ service cloud.firestore {
 
     match /waitlist/{waitlistId} {
       allow read, delete: if true;
-      allow create: if isOwner(waitlistId) && isEmailVerified() && isValidId(waitlistId) && isValidWaitlist(request.resource.data);
-      allow update: if isOwner(waitlistId) && isEmailVerified() && isValidId(waitlistId) && isValidWaitlist(request.resource.data)
+      allow create: if isOwner(waitlistId) && isEmailVerified() && isValidId(waitlistId) 
+        && isValidWaitlist(request.resource.data)
+        && request.resource.data.joinedAt == request.time;
+      allow update: if isOwner(waitlistId) && isEmailVerified() && isValidId(waitlistId) 
+        && isValidWaitlist(request.resource.data)
         && request.resource.data.joinedAt == resource.data.joinedAt
         && request.resource.data.uid == resource.data.uid;
     }

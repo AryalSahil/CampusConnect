@@ -80,6 +80,7 @@
         },
         "referralEmails": {
           "type": "array",
+          "items": { "type": "string" },
           "description": "List of emails of friends referred after registration."
         },
         "referralsCount": {

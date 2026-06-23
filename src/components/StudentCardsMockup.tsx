@@ -2,6 +2,14 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Heart, X, MessageSquare, ShieldCheck, Sparkles, Star } from 'lucide-react';
 
+import avatar1 from '../assets/images/indian_student_avatar_1782091046623.jpg';
+import avatar2 from '../assets/images/student_mr_fresher_1782092440055.jpg';
+import avatar3 from '../assets/images/student_red_cap_1782092477821.jpg';
+import avatar4 from '../assets/images/student_suit_lawn_1782092459732.jpg';
+import avatar5 from '../assets/images/student_red_jacket_1782092404155.jpg';
+import avatar6 from '../assets/images/student_california_tee_1782092422864.jpg';
+import avatar7 from '../assets/images/student_leather_jacket_1782092493584.jpg';
+
 interface Student {
   id: number;
   name: string;
@@ -22,7 +30,7 @@ const mockStudents: Student[] = [
     college: "IIT Bombay",
     major: "Computer Science",
     bio: "CS at IITB. Ready to disrupt the tech space, building late-night compilers & craving sweet cutting chai ☕💻 Let's build something chaotic!",
-    image: "/src/assets/images/indian_student_avatar_1782091046623.jpg",
+    image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=400",
     interests: ["Compilers", "Cutting Chai", "Hackathons", "Product Design"],
     gradient: "from-pink-500 via-purple-500 to-indigo-500"
   },
@@ -33,7 +41,7 @@ const mockStudents: Student[] = [
     college: "BITS Pilani",
     major: "Electrical Engineering",
     bio: "Mr. Fresher finalist! Always down for late-night campus walks, garage bands, debating startup pitches, and drinking strong filter coffee! 🎸🚀",
-    image: "/src/assets/images/student_mr_fresher_1782092440055.jpg",
+    image: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=400",
     interests: ["Garage Bands", "Startup Pitches", "Filter Coffee", "Investing"],
     gradient: "from-[#C9A227] to-[#1A1108]"
   },
@@ -44,7 +52,7 @@ const mockStudents: Student[] = [
     college: "Delhi University",
     major: "English Literature",
     bio: "Aspiring journalist & retro poetry slam fan. Let's connect if you love cozy cafes, indie magazines, or exploring local street food joints! 📚✨",
-    image: "/src/assets/images/student_red_cap_1782092477821.jpg",
+    image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400",
     interests: ["Poetry Slams", "Street Food", "Indie Mags", "Literature"],
     gradient: "from-emerald-400 to-cyan-500"
   },
@@ -55,7 +63,7 @@ const mockStudents: Student[] = [
     college: "Ashoka University",
     major: "Economics & Finance",
     bio: "Coffee enthusiast, behavioral econ, film photography, and checking out local indie concerts. Let's trade Spotify playlists! ☕📸",
-    image: "/src/assets/images/student_suit_lawn_1782092459732.jpg",
+    image: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&q=80&w=400",
     interests: ["Econ Phil", "Photography", "Playlists", "Espresso"],
     gradient: "from-purple-600 to-pink-500"
   },
@@ -66,7 +74,7 @@ const mockStudents: Student[] = [
     college: "St. Xavier's, Mumbai",
     major: "Media & Design",
     bio: "Style blogger & synth enthusiast. Let's match if you love retro arcades, late-night campus festivals, or deep graphic design talks! 👾🎨",
-    image: "/src/assets/images/student_red_jacket_1782092404155.jpg",
+    image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=400",
     interests: ["Retro Arcades", "Synth", "Design", "Festivals"],
     gradient: "from-red-500 via-orange-400 to-yellow-500"
   },
@@ -77,7 +85,7 @@ const mockStudents: Student[] = [
     college: "Christ University, Bangalore",
     major: "Psychology",
     bio: "Passionate about behavioral trends, exploring serene indie bookshops, and finding the perfect filter kaapi in Bangalore! ☕📖",
-    image: "/src/assets/images/student_california_tee_1782092422864.jpg",
+    image: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400",
     interests: ["Behaviors", "Indie Books", "Kaapi", "Acoustics"],
     gradient: "from-teal-400 to-blue-500"
   },
@@ -88,11 +96,22 @@ const mockStudents: Student[] = [
     college: "Symbiosis, Pune",
     major: "Film & Creative Media",
     bio: "Film photographer & tech tinkerer. Let's discuss cyberpunk aesthetics, indie synth-pop, or organize midnight street photography walks! 📸🌌",
-    image: "/src/assets/images/student_leather_jacket_1782092493584.jpg",
+    image: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80&w=400",
     interests: ["Midnight Walk", "Synth-pop", "Photography", "Film"],
     gradient: "from-[#1A1108] to-[#C9A227]"
   }
 ];
+
+// Fallback lookup table using imported local assets
+const localFallbacks: Record<number, string> = {
+  1: avatar1,
+  2: avatar2,
+  3: avatar3,
+  4: avatar4,
+  5: avatar5,
+  6: avatar6,
+  7: avatar7
+};
 
 export default function StudentCardsMockup() {
   const [students, setStudents] = useState<Student[]>(mockStudents);
@@ -101,6 +120,16 @@ export default function StudentCardsMockup() {
   const [matchedStudent, setMatchedStudent] = useState<Student | null>(null);
 
   const activeStudent = students[currentIndex];
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, studentId: number) => {
+    const backup = localFallbacks[studentId];
+    const target = e.currentTarget;
+    if (backup && !target.src.includes('avatar') && !target.src.includes('dicebear')) {
+      target.src = backup;
+    } else {
+      target.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=student-${studentId}`;
+    }
+  };
 
   const handleSwipe = (direction: 'left' | 'right') => {
     if (currentIndex >= students.length) return;
@@ -174,6 +203,7 @@ export default function StudentCardsMockup() {
                       alt={activeStudent.name}
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover select-none"
+                      onError={(e) => handleImageError(e, activeStudent.id)}
                     />
                     {/* Verified Badge Overlay */}
                     <div className="absolute top-3 left-3 bg-[#1A1108] text-[#F4EBD7] py-1 px-2.5 rounded-full text-[10px] font-condensed tracking-wider flex items-center gap-1 border border-[#C9A227]">
@@ -317,7 +347,7 @@ export default function StudentCardsMockup() {
             {/* Micro avatars overlapping */}
             <div className="flex items-center -space-x-4 mb-4 select-none">
               <div className="w-12 h-12 rounded-full border-2 border-[#C9A227] overflow-hidden bg-neutral-800">
-                <img src={matchedStudent.image} alt="match" referrerPolicy="no-referrer" className="w-full h-full object-cover" />
+                <img src={matchedStudent.image} alt="match" referrerPolicy="no-referrer" className="w-full h-full object-cover" onError={(e) => handleImageError(e, matchedStudent.id)} />
               </div>
               <div className="w-12 h-12 rounded-full border-2 border-[#C9A227] overflow-hidden bg-[#C9A227] flex items-center justify-center font-display text-sm text-[#1A1108]">
                 YOU
