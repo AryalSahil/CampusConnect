@@ -46,7 +46,7 @@ service cloud.firestore {
     function isValidWaitlist(data) {
       return data.keys().hasAll(['uid', 'fullName', 'email', 'collegeName', 'course', 'graduationYear', 'joinedAt'])
         && data.keys().size() >= 7 && data.keys().size() <= 15
-        && data.uid is string && data.uid == request.auth.uid
+        && data.uid is string && (request.auth != null ? data.uid == request.auth.uid : true)
         && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 150
         && data.email is string && data.email.size() <= 200 && data.email.matches('^[^@]+@[^@]+$')
         && data.collegeName is string && data.collegeName.size() >= 1 && data.collegeName.size() <= 200
@@ -73,12 +73,17 @@ service cloud.firestore {
 
     match /waitlist/{waitlistId} {
       allow read: if true;
-      allow create: if (isOwner(waitlistId) && isEmailVerified() && isValidId(waitlistId) 
+      allow create: if (
+          (request.auth != null && isOwner(waitlistId) && isEmailVerified() && isValidId(waitlistId))
+          || (request.auth == null && waitlistId == request.resource.data.uid)
+        )
         && isValidWaitlist(request.resource.data)
-        && request.resource.data.joinedAt == request.time)
+        && request.resource.data.joinedAt == request.time
         || isAdmin()
         || (waitlistId == 'diagnostic_test_temp_doc' && isSignedIn());
-      allow update: if isOwner(waitlistId) || isAdmin() || (waitlistId == 'diagnostic_test_temp_doc' && isSignedIn());
+      allow update: if (request.auth != null && (isOwner(waitlistId) || isAdmin()))
+        || (request.auth == null && waitlistId == resource.data.uid)
+        || (waitlistId == 'diagnostic_test_temp_doc' && isSignedIn());
       allow delete: if isAdmin() || (waitlistId == 'diagnostic_test_temp_doc' && isSignedIn());
     }
 

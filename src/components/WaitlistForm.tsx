@@ -23,6 +23,8 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
   const [graduationYear, setGraduationYear] = useState('2027');
   const [referralEmail, setReferralEmail] = useState('');
   const [universityEmail, setUniversityEmail] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [isManualMode, setIsManualMode] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Additional Referral Fields (for Screen 3)
@@ -41,10 +43,10 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
   const [domainWarning, setDomainWarning] = useState<string | null>(null);
 
   // Real-time listener for user's waitlist record
-  const checkWaitlistStatus = (currentUser: User) => {
+  const checkWaitlistStatus = (uid: string) => {
     setDbLoading(true);
-    const path = `waitlist/${currentUser.uid}`;
-    const docRef = doc(db, 'waitlist', currentUser.uid);
+    const path = `waitlist/${uid}`;
+    const docRef = doc(db, 'waitlist', uid);
     
     const unsub = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -56,7 +58,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
           collegeName: data.collegeName,
           course: data.course,
           graduationYear: data.graduationYear,
-          joinedAt: data.joinedAt?.toDate() || new Date(),
+          joinedAt: data.joinedAt?.toDate?.() || data.joinedAt || new Date(),
           referralCode: data.referralCode,
           referrerUid: data.referrerUid,
           referralEmail: data.referralEmail,
@@ -71,7 +73,6 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
       setLoading(false);
     }, (err) => {
       console.error("Firestore listening error inside WaitlistForm:", err);
-      handleFirestoreError(err, 'get', path);
       setDbLoading(false);
       setLoading(false);
     });
@@ -92,14 +93,26 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
       setUser(currentUser);
       if (currentUser) {
         setUniversityEmail(currentUser.email || '');
-        unsubWaitlist = checkWaitlistStatus(currentUser);
-      } else {
         if (unsubWaitlist) {
           unsubWaitlist();
-          unsubWaitlist = null;
         }
-        setWaitlistRecord(null);
-        setLoading(false);
+        unsubWaitlist = checkWaitlistStatus(currentUser.uid);
+      } else {
+        const localUid = localStorage.getItem('swipemates_local_uid');
+        if (localUid) {
+          setIsManualMode(true);
+          if (unsubWaitlist) {
+            unsubWaitlist();
+          }
+          unsubWaitlist = checkWaitlistStatus(localUid);
+        } else {
+          if (unsubWaitlist) {
+            unsubWaitlist();
+            unsubWaitlist = null;
+          }
+          setWaitlistRecord(null);
+          setLoading(false);
+        }
       }
     });
     return () => {
@@ -130,7 +143,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
       }
 
       setUniversityEmail(currentUser.email || '');
-      await checkWaitlistStatus(currentUser);
+      await checkWaitlistStatus(currentUser.uid);
     } catch (err: any) {
       console.error('Sign-In Error:', err);
       const friendlyMessage = getFriendlyAuthErrorMessage(err);
@@ -143,6 +156,9 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
     setLoading(true);
     try {
       await signOut(auth);
+      localStorage.removeItem('swipemates_local_uid');
+      setIsManualMode(false);
+      setFullName('');
       setUser(null);
       setWaitlistRecord(null);
     } catch (err) {
@@ -154,8 +170,15 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
 
   const handleSubmitWaitlist = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user && !isManualMode) return;
     setFormError(null);
+
+    if (!user) {
+      if (!fullName.trim() || fullName.trim().length < 2) {
+        setFormError('Please enter your Full Name.');
+        return;
+      }
+    }
 
     if (!collegeName.trim() || collegeName.trim().length < 2) {
       setFormError('Please enter your full College or University name.');
@@ -182,24 +205,35 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
         setFormError('Please enter a valid student email address to refer.');
         return;
       }
-      if (user.email && finalReferralEmail === user.email.toLowerCase()) {
+      if (user && user.email && finalReferralEmail === user.email.toLowerCase()) {
+        setFormError('You cannot refer your own email address.');
+        return;
+      }
+      if (!user && finalReferralEmail === finalUniversityEmail) {
         setFormError('You cannot refer your own email address.');
         return;
       }
     }
 
     setDbLoading(true);
-    const waitlistId = user.uid;
+    let waitlistId = user?.uid;
+    if (!waitlistId) {
+      waitlistId = localStorage.getItem('swipemates_local_uid') || '';
+      if (!waitlistId) {
+        waitlistId = 'sm-user-' + Math.random().toString(36).substring(2, 11);
+        localStorage.setItem('swipemates_local_uid', waitlistId);
+      }
+    }
     const path = `waitlist/${waitlistId}`;
     
     // Extract referral code from URL if present
     const urlParams = new URLSearchParams(window.location.search);
     const referrerUid = urlParams.get('ref') || undefined;
-    const referralCode = `SM-${user.uid.slice(0, 5).toUpperCase()}`;
+    const referralCode = `SM-${waitlistId.slice(0, 5).toUpperCase()}`;
 
     const registrationPayload = {
-      uid: user.uid,
-      fullName: user.displayName || 'SwipeMates Scholar',
+      uid: waitlistId,
+      fullName: user ? (user.displayName || 'SwipeMates Scholar') : fullName.trim(),
       email: finalUniversityEmail,
       collegeName: collegeName.trim(),
       course: course.trim(),
@@ -217,7 +251,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
       await setDoc(doc(db, 'waitlist', waitlistId), registrationPayload);
       
       setWaitlistRecord({
-        uid: user.uid,
+        uid: waitlistId,
         fullName: registrationPayload.fullName,
         email: registrationPayload.email,
         collegeName: registrationPayload.collegeName,
@@ -373,7 +407,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
       <AnimatePresence mode="wait">
         
         {/* State 1: User is NOT authenticated */}
-        {!user && (
+        {!user && !isManualMode && (
           <motion.div
             key="unauthenticated"
             initial={{ opacity: 0, y: 10 }}
@@ -400,8 +434,17 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
             )}
 
             {domainWarning && !formError && (
-              <div className="text-[11px] bg-amber-500/10 border border-amber-500/30 text-amber-800 font-medium px-4 py-2.5 rounded-lg mb-4 text-left w-full">
-                ⚠️ {domainWarning}
+              <div className="text-[11px] bg-amber-500/10 border border-amber-500/30 text-amber-850 font-medium px-4 py-3 rounded-xl mb-4 text-left w-full flex flex-col gap-2">
+                <p>⚠️ Firebase Authentication: This domain ({window.location.hostname}) is not yet authorized in Firebase Console.</p>
+                <button
+                  onClick={() => {
+                    setFormError(null);
+                    setIsManualMode(true);
+                  }}
+                  className="w-full text-center bg-amber-600/20 hover:bg-amber-600/30 text-amber-950 font-bold uppercase tracking-wider text-[10px] py-2 px-3 rounded-lg transition-all border border-amber-600/25 outline-none cursor-pointer"
+                >
+                  Skip Verification & Register Manually
+                </button>
               </div>
             )}
 
@@ -438,11 +481,23 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
               </svg>
               <span>Verify with Google</span>
             </motion.button>
+
+            {/* Manual Registration Link */}
+            <button
+              onClick={() => {
+                setFormError(null);
+                setIsManualMode(true);
+              }}
+              className="mt-4 text-xs font-condensed tracking-wider font-bold text-[#1A1108]/60 hover:text-[#C9A227] uppercase transition-all flex items-center gap-1.5 bg-white/40 border border-[#1A1108]/10 hover:border-[#C9A227]/40 px-4 py-2 rounded-full outline-none cursor-pointer"
+            >
+              <span>Or, register manually directly</span>
+              <ArrowRight className="w-3.5 h-3.5 text-[#C9A227]" />
+            </button>
           </motion.div>
         )}
 
-        {/* State 2: Authenticated but NOT registered yet */}
-        {user && !waitlistRecord && (
+        {/* State 2: Authenticated or Manual registration but NOT registered yet */}
+        {((user && !waitlistRecord) || (isManualMode && !waitlistRecord)) && (
           <motion.form
             key="authenticated-registration"
             initial={{ opacity: 0, y: 10 }}
@@ -453,7 +508,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
           >
             <div className="flex items-center justify-between border-b-2 border-[#1A1108]/15 pb-4">
               <div className="flex items-center gap-2.5">
-                {user.photoURL ? (
+                {user?.photoURL ? (
                   <img
                     src={user.photoURL}
                     alt={user.displayName || 'student'}
@@ -461,22 +516,39 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
                     className="w-10 h-10 rounded-full border-2 border-[#1A1108]"
                   />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#C9A227] flex items-center justify-center text-white font-display text-sm">
-                    {user.displayName?.[0] || 'S'}
+                  <div className="w-10 h-10 rounded-full bg-[#C9A227] flex items-center justify-center text-white font-display text-sm font-bold shadow-sm">
+                    {user?.displayName?.[0] || fullName?.[0] || 'S'}
                   </div>
                 )}
                 <div className="text-left">
-                  <p className="text-xs font-condensed tracking-wider font-semibold text-[#1A1108]/50 uppercase">STUDENT VERIFIED</p>
-                  <p className="text-sm font-bold text-[#1A1108] leading-tight">{user.displayName}</p>
+                  <p className="text-xs font-condensed tracking-wider font-semibold text-[#1A1108]/50 uppercase">
+                    {user ? "STUDENT VERIFIED" : "MANUAL SPOT"}
+                  </p>
+                  <p className="text-sm font-bold text-[#1A1108] leading-tight">
+                    {user ? user.displayName : (fullName || 'New Student')}
+                  </p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={handleSignOut}
-                className="text-[#1A1108]/60 hover:text-red-600 transition-colors uppercase font-condensed text-xs font-bold flex items-center gap-1 bg-white/40 border border-[#1A1108]/15 px-2.5 py-1 rounded-full outline-none"
+                onClick={user ? handleSignOut : () => {
+                  setIsManualMode(false);
+                  setFullName('');
+                  setFormError(null);
+                }}
+                className="text-[#1A1108]/60 hover:text-red-600 transition-colors uppercase font-condensed text-xs font-bold flex items-center gap-1 bg-white/40 border border-[#1A1108]/15 px-2.5 py-1 rounded-full outline-none cursor-pointer"
               >
-                <LogOut className="w-3.5 h-3.5" />
-                Sign Out
+                {user ? (
+                  <>
+                    <LogOut className="w-3.5 h-3.5" />
+                    Sign Out
+                  </>
+                ) : (
+                  <>
+                    <ArrowRight className="w-3.5 h-3.5 rotate-180 text-amber-600" />
+                    Back
+                  </>
+                )}
               </button>
             </div>
 
@@ -485,13 +557,35 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
                 Complete Your Spot Reservation
               </h3>
               <p className="text-xs text-[#1A1108]/70">
-                You're authenticated via Google. Please provide your email address below to compute your placement:
+                {user ? "You're authenticated via Google. Please provide your email address below to compute your placement:" : "Provide your student details below to reserve your waitlist spot:"}
               </p>
             </div>
 
             {formError && (
               <div className="text-xs bg-red-500/10 border border-red-500/30 text-red-700 font-semibold px-4 py-2.5 rounded-lg text-left">
                 {formError}
+              </div>
+            )}
+
+            {/* Input Full Name (Only for Manual Mode) */}
+            {!user && (
+              <div className="flex flex-col gap-1 text-left">
+                <label htmlFor="fullNameInput" className="font-condensed text-[10px] font-black tracking-widest text-[#1A1108]/60 uppercase">
+                  Full Name *
+                </label>
+                <input
+                  id="fullNameInput"
+                  type="text"
+                  placeholder="e.g. Rahul Sharma"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  autoComplete="name"
+                  required
+                  className="w-full bg-transparent border-b border-[#1A1108]/20 pb-2 text-sm font-medium text-[#1A1108] placeholder-[#1A1108]/30 outline-none focus:border-[#C9A227] transition-all"
+                />
+                <p className="text-[9px] text-[#1A1108]/50 leading-normal">
+                  Provide your official full name for waitlist leaderboard ranking.
+                </p>
               </div>
             )}
 
