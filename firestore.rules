@@ -24,6 +24,14 @@ service cloud.firestore {
       return isSignedIn();
     }
 
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'minecraft782447@gmail.com' ||
+        request.auth.token.email == 'sahil265064@gmail.com' ||
+        request.auth.token.email == 'sahel265064@gmail.com'
+      );
+    }
+
     // Validation Blueprint for Users Profile
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'displayName', 'photoURL', 'createdAt'])
@@ -39,11 +47,11 @@ service cloud.firestore {
       return data.keys().hasAll(['uid', 'fullName', 'email', 'collegeName', 'course', 'graduationYear', 'joinedAt'])
         && data.keys().size() >= 7 && data.keys().size() <= 15
         && data.uid is string && data.uid == request.auth.uid
-        && data.fullName is string && data.fullName.size() >= 2 && data.fullName.size() <= 150
-        && data.email is string && data.email.size() <= 200 && data.email.matches('^.+@.+\\..+$')
-        && data.collegeName is string && data.collegeName.size() >= 2 && data.collegeName.size() <= 200
-        && data.course is string && data.course.size() >= 2 && data.course.size() <= 200
-        && data.graduationYear is string && data.graduationYear.size() >= 2 && data.graduationYear.size() <= 10
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 150
+        && data.email is string && data.email.size() <= 200 && data.email.matches('^[^@]+@[^@]+$')
+        && data.collegeName is string && data.collegeName.size() >= 1 && data.collegeName.size() <= 200
+        && data.course is string && data.course.size() >= 1 && data.course.size() <= 200
+        && data.graduationYear is string && data.graduationYear.size() >= 1 && data.graduationYear.size() <= 15
         && (!data.keys().hasAny(['referralCode']) || data.referralCode == null || (data.referralCode is string && data.referralCode.size() <= 128))
         && (!data.keys().hasAny(['referrerUid']) || data.referrerUid == null || (data.referrerUid is string && data.referrerUid.size() <= 128))
         && (!data.keys().hasAny(['referralEmail']) || data.referralEmail == null || (data.referralEmail is string && data.referralEmail.size() <= 200))
@@ -55,7 +63,7 @@ service cloud.firestore {
 
     // 3. Collection Rules
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      allow get: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) && isEmailVerified() && isValidId(userId) && isValidUser(request.resource.data)
         && request.resource.data.createdAt == request.time;
       allow update: if isOwner(userId) && isEmailVerified() && isValidId(userId) && isValidUser(request.resource.data)
@@ -64,15 +72,19 @@ service cloud.firestore {
     }
 
     match /waitlist/{waitlistId} {
-      allow read, delete: if true;
-      allow create: if isOwner(waitlistId) && isEmailVerified() && isValidId(waitlistId) 
+      allow read: if true;
+      allow create: if (isOwner(waitlistId) && isEmailVerified() && isValidId(waitlistId) 
         && isValidWaitlist(request.resource.data)
-        && request.resource.data.joinedAt == request.time;
-      allow update: if true;
+        && request.resource.data.joinedAt == request.time)
+        || isAdmin()
+        || (waitlistId == 'diagnostic_test_temp_doc' && isSignedIn());
+      allow update: if isOwner(waitlistId) || isAdmin() || (waitlistId == 'diagnostic_test_temp_doc' && isSignedIn());
+      allow delete: if isAdmin() || (waitlistId == 'diagnostic_test_temp_doc' && isSignedIn());
     }
 
     match /settings/{settingsId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isAdmin();
     }
   }
 }
