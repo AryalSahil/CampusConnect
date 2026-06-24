@@ -105,7 +105,7 @@ export default function App() {
   // Real-time Maintenance Mode states from Firestore
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [targetLaunchDate, setTargetLaunchDate] = useState('2026-07-15T12:00:00.000Z');
-  const [launchMessage, setLaunchMessage] = useState('We are polishing controls... Campus Connect launching soon.');
+  const [launchMessage, setLaunchMessage] = useState('We are polishing controls... SwipeMates launching soon.');
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
   // Listen to settings/maintenance document in real-time 24/7
@@ -115,7 +115,7 @@ export default function App() {
         const data = docSnap.data();
         setMaintenanceMode(data.active ?? false);
         setTargetLaunchDate(data.targetLaunchDate ?? '2026-07-15T12:00:00.000Z');
-        setLaunchMessage(data.launchMessage ?? 'Campus Connect is currently under scheduled maintenance.');
+        setLaunchMessage(data.launchMessage ?? 'SwipeMates is currently under scheduled maintenance.');
       }
     }, (err) => {
       console.error("Failed to sync system configuration in real-time:", err);
@@ -204,8 +204,8 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="font-display text-4xl sm:text-5xl md:text-6xl text-white uppercase tracking-tighter leading-none mb-6 max-w-xl"
           >
-            Polishing Campus <br />
-            <span className="text-[#C9A227]">Connect Controls</span>
+            Polishing SwipeMates <br />
+            <span className="text-[#C9A227]">Controls</span>
           </motion.h1>
 
           <p className="text-sm text-neutral-400 font-sans max-w-md mx-auto mb-10 leading-relaxed">
@@ -275,7 +275,7 @@ export default function App() {
 
         {/* Footer lock gateway link */}
         <div className="max-w-7xl mx-auto w-full flex flex-col sm:flex-row justify-between items-center gap-4 z-10 text-[10px] text-neutral-500 font-mono border-t border-neutral-800/60 pt-6">
-          <span>&copy; 2026 Campus Connect Inc. System locked.</span>
+          <span>&copy; 2026 SwipeMates Inc. System locked.</span>
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setShowAdminConsole(true)}
@@ -376,7 +376,7 @@ export default function App() {
               transition={{ duration: 0.6, delay: 0.2 }}
               className="text-base sm:text-lg text-[#1A1108]/80 max-w-xl mb-10 leading-relaxed font-sans text-center lg:text-left"
             >
-              Campus Connect helps premier Indian students across IIT Bombay, BITS Pilani, Delhi University, Ashoka, and other elite hubs discover like-minded peers, collaborate on events, and build authentic connections beyond college boundaries.
+              SwipeMates helps premier Indian students across IIT Bombay, BITS Pilani, Delhi University, Ashoka, and other elite hubs discover like-minded peers, collaborate on events, and build authentic connections beyond college boundaries.
             </motion.p>
 
             {/* CTA buttons */}
@@ -539,7 +539,7 @@ export default function App() {
           <IndiaMap selectedCampus={selectedCampus} onSelectCampus={setSelectedCampus} />
 
           {/* Dynamic University / College Toggle Filter */}
-          <div className="flex flex-wrap justify-center gap-2.5 mb-14 max-w-4xl mx-auto bg-[#1A1108]/5 p-2 rounded-[22px] border border-[#1A1108]/10">
+          <div className="flex flex-wrap justify-center gap-2 mb-14 max-w-4xl mx-auto bg-[#1A1108]/5 p-1.5 sm:p-2 rounded-[22px] border border-[#1A1108]/10">
             {[
               { id: 'all', name: 'General Hub', icon: <Compass className="w-3.5 h-3.5" /> },
               { id: 'du', name: 'Delhi University', icon: <School className="w-3.5 h-3.5" /> },
@@ -552,7 +552,7 @@ export default function App() {
                 onClick={() => setSelectedCampus(campus.id as any)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[10px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer border ${
+                className={`flex items-center justify-center gap-1.5 px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl text-[9px] sm:text-xs font-black uppercase tracking-wider transition-all cursor-pointer border min-h-[44px] ${
                   selectedCampus === campus.id
                     ? 'bg-[#1A1108] text-[#F3ECD8] border-[#1A1108] shadow-[2px_2px_0px_0px_#C9A227]'
                     : 'bg-white/70 text-[#1A1108] border-[#1A1108]/15 hover:bg-white hover:border-[#1A1108]'
@@ -809,14 +809,14 @@ export default function App() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -15 }}
                   transition={{ duration: 0.25 }}
-                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
                 >
                   {displayCards.map((card, idx) => (
                     <motion.div
                       key={idx}
                       whileHover={{ scale: 1.03, y: -4 }}
                       transition={{ type: "spring", stiffness: 300 }}
-                      className={`border-2 border-[#1A1108] rounded-3xl p-6 text-left shadow-[4px_4px_0px_0px_#1A1108] ${card.color} ${card.textColor} flex flex-col justify-between min-h-[225px]`}
+                      className={`border-2 border-[#1A1108] rounded-3xl p-5 sm:p-6 text-left shadow-[4px_4px_0px_0px_#1A1108] ${card.color} ${card.textColor} flex flex-col justify-between min-h-[210px] sm:min-h-[225px]`}
                     >
                       <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center border border-[#1A1108]/15 mb-4 text-[#1A1108]">
                         {card.icon}
@@ -969,7 +969,7 @@ export default function App() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               {
-                quote: "Campus Connect bypassed all the standard social noise! The strict verification gave me perfect confidence to coordinate verified partners across IIT Bombay, IIT Delhi, and BITS for hackathons & events.",
+                quote: "SwipeMates bypassed all the standard social noise! The strict verification gave me perfect confidence to coordinate verified partners across IIT Bombay, IIT Delhi, and BITS for hackathons & events.",
                 author: "Ananya Sen",
                 meta: "IIT Bombay Class of '27 • CS Major",
                 image: avatarAnanya
@@ -1048,8 +1048,8 @@ export default function App() {
           <div className="space-y-4">
             {[
               {
-                q: "Is Campus Connect free?",
-                a: "Yes, completely! Campus Connect is 100% free to join, search, match, and chat for all verified undergraduate and graduate college students."
+                q: "Is SwipeMates free?",
+                a: "Yes, completely! SwipeMates is 100% free to join, search, match, and chat for all verified undergraduate and graduate college students."
               },
               {
                 q: "When will it launch?",
@@ -1065,7 +1065,7 @@ export default function App() {
               },
               {
                 q: "Is it a dating app?",
-                a: "No! Campus Connect is primarily a social networking platform designed for matching study groups, discovering localized campus feeds, coordinating dorm board events, and building general collegiate friendships."
+                a: "No! SwipeMates is primarily a social networking platform designed for matching study groups, discovering localized campus feeds, coordinating dorm board events, and building general collegiate friendships."
               }
             ].map((faq, index) => {
               const isOpen = activeFaq === index;
@@ -1149,13 +1149,13 @@ export default function App() {
           <div className="flex flex-col items-center md:items-start text-center md:text-left">
             <Logo light className="scale-90" />
             <p className="text-[10px] text-neutral-400 font-sans mt-4 max-w-xs leading-relaxed">
-              Campus Connect helps college students discover new friends, match, and construct verified collegiate communities safely.
+              SwipeMates helps college students discover new friends, match, and construct verified collegiate communities safely.
             </p>
             <p className="text-[10px] text-neutral-300 font-sans mt-2.5">
-              📩 Team: <a href="mailto:campusconnect.team@proton.me" className="text-[#C9A227] font-semibold hover:underline font-mono">campusconnect.team@proton.me</a>
+              📩 Team: <a href="mailto:swipemates.team@proton.me" className="text-[#C9A227] font-semibold hover:underline font-mono">swipemates.team@proton.me</a>
             </p>
             <p className="text-[9px] text-neutral-500 font-mono mt-2">
-              © 2026 Campus Connect Inc. All rights reserved. Registered launch database.
+              © 2026 SwipeMates Inc. All rights reserved. Registered launch database.
             </p>
           </div>
 
@@ -1390,7 +1390,7 @@ export default function App() {
 
               <div className="space-y-4 font-sans text-[11px] leading-relaxed text-[#1A1108]/85">
                 <p className="text-xs text-[#1A1108] font-bold">
-                  By joining Campus Connect, you pledge to uphold academic integrity, student safety standards, and collective respect.
+                  By joining SwipeMates, you pledge to uphold academic integrity, student safety standards, and collective respect.
                 </p>
 
                 <div className="border-t border-[#1A1108]/10 pt-3">
@@ -1425,7 +1425,7 @@ export default function App() {
                     <span className="w-1.5 h-1.5 rounded-full bg-[#C9A227]" /> 4. Service Boundaries
                   </h3>
                   <p>
-                    Campus Connect is an independent platform built by and for students. We reserve complete authority to moderate waitlist statuses and clear access parameters to ensure the highest standards of safety for university participants.
+                    SwipeMates is an independent platform built by and for students. We reserve complete authority to moderate waitlist statuses and clear access parameters to ensure the highest standards of safety for university participants.
                   </p>
                 </div>
               </div>

@@ -9,7 +9,7 @@
  * 4. Run `firebase deploy --only functions`
  */
 
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const nodemailer = require("nodemailer");
 
@@ -215,5 +215,177 @@ exports.sendWelcomeEmailTrigger = onDocumentCreated("waitlist/{waitlistId}", asy
   } catch (error) {
     logger.error("Failed to send welcome email via nodemailer:", error);
     throw error;
+  }
+});
+
+/**
+ * Triggers when an Admin updates an entry's status in Firestore to 'approved'.
+ */
+exports.sendApprovalEmailTrigger = onDocumentUpdated("waitlist/{waitlistId}", async (event) => {
+  const change = event.data;
+  if (!change) {
+    logger.error("No data associated with this update event.");
+    return;
+  }
+
+  const beforeData = change.before.data();
+  const afterData = change.after.data();
+
+  // Trigger only when status changes to 'approved'
+  if (beforeData.status !== "approved" && afterData.status === "approved") {
+    const studentEmail = afterData.email;
+    const fullName = afterData.fullName;
+    const collegeName = afterData.collegeName;
+    const course = afterData.course;
+    const graduationYear = afterData.graduationYear;
+
+    logger.info(`Waitlist Approved trigger: ID ${event.params.waitlistId} for Student ${fullName} (${studentEmail})`);
+
+    if (!studentEmail) {
+      logger.warn("Skipping email delivery. No email address verified for waitlist document.");
+      return;
+    }
+
+    const approvalHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>SwipeMates Admission Approved!</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #F4EBD7;
+            color: #1A1108;
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+          }
+          .container {
+            max-width: 600px;
+            margin: 40px auto;
+            background: #ffffff;
+            border: 2px solid #1A1108;
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 4px 4px 0px 0px #C9A227;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+          }
+          .logo {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 24px;
+            font-weight: 900;
+            letter-spacing: -0.5px;
+            text-transform: uppercase;
+            color: #1A1108;
+            border-bottom: 2px solid #C9A227;
+            display: inline-block;
+            padding-bottom: 4px;
+          }
+          .badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            background: #10B981;
+            color: #ffffff;
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin-top: 15px;
+            letter-spacing: 1px;
+          }
+          h1 {
+            font-size: 22px;
+            font-weight: 800;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: #1A1108;
+          }
+          p {
+            font-size: 14px;
+            color: #4A3E30;
+            margin-bottom: 20px;
+          }
+          .box {
+            background-color: #EBFDF5;
+            border: 1px dashed #10B981;
+            border-radius: 16px;
+            padding: 20px;
+            margin: 25px 0;
+          }
+          .box h3 {
+            margin: 0 0 10px 0;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #065F46;
+          }
+          .box p {
+            margin: 0;
+            font-size: 13px;
+            color: #065F46;
+          }
+          .footer {
+            margin-top: 45px;
+            text-align: center;
+            font-size: 11px;
+            color: #1A1108;
+            opacity: 0.6;
+            border-top: 1px solid rgba(26, 17, 8, 0.1);
+            padding-top: 20px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="logo">SwipeMates</div>
+            <br />
+            <span class="badge">Application Approved</span>
+          </div>
+          
+          <h1>Congratulations, ${fullName || 'Scholar'}!</h1>
+          <p>
+            Your SwipeMates application has been officially reviewed and <strong>Approved</strong> by the Campus Admin team! Your collegiate credentials are now fully verified.
+          </p>
+  
+          <div class="box">
+            <h3>Verified Profile Details</h3>
+            <p><strong>University:</strong> ${collegeName || 'Verified University'}</p>
+            <p><strong>Course:</strong> ${course || 'General'}</p>
+            <p><strong>Graduation Year:</strong> Class of ${graduationYear || '2027'}</p>
+            <p><strong>Status:</strong> ACTIVE / VERIFIED</p>
+          </div>
+  
+          <p>
+            You've moved up to the front of the queue! Our team is finalising exclusive match setups and community circles on your campus. Keep an eye out for our upcoming launch notifications.
+          </p>
+  
+          <div class="footer">
+            &copy; 2026 SwipeMates. All rights reserved.<br />
+            You are receiving this automated email because you were approved on the swipemates.app waitlist.
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    try {
+      const info = await transporter.sendMail({
+        from: process.env.SMTP_FROM || '"SwipeMates" <welcome@swipemates.app>',
+        to: studentEmail,
+        subject: `🎉 Congratulations ${fullName || 'Scholar'}! Your SwipeMates spot is Approved`,
+        text: `Congratulations ${fullName || 'Scholar'}! Your SwipeMates registration is officially approved! Representing ${collegeName || 'your university'}.`,
+        html: approvalHtml,
+      });
+      logger.info(`Approval email successfully sent: messageId=${info.messageId}`);
+    } catch (error) {
+      logger.error("Failed to send approval email via nodemailer trigger:", error);
+      throw error;
+    }
   }
 });

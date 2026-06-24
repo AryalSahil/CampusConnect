@@ -7,7 +7,9 @@ import {
   query, 
   orderBy,
   onSnapshot,
-  setDoc
+  setDoc,
+  updateDoc,
+  limit
 } from 'firebase/firestore';
 import { db, handleFirestoreError } from '../lib/firebase';
 import { WaitlistRegistration } from '../types';
@@ -74,10 +76,18 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // Approval state
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+
+  // Live Sync Status and Diagnostics
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'connecting' | 'error' | 'disconnected'>('disconnected');
+  const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([]);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
+
   // Live Maintenance & Countdown state managers
   const [maintenanceActive, setMaintenanceActive] = useState(false);
   const [targetLaunchDate, setTargetLaunchDate] = useState('2026-07-15T12:00');
-  const [launchMessage, setLaunchMessage] = useState('Our team is polishing the workspace... Campus Connect launching soon.');
+  const [launchMessage, setLaunchMessage] = useState('Our team is polishing the workspace... SwipeMates launching soon.');
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
 
   // Cloud Function Waitlist welcome simulator states
@@ -108,7 +118,7 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
         const data = docSnap.data();
         setMaintenanceActive(data.active ?? false);
         setTargetLaunchDate(data.targetLaunchDate ?? '2026-07-15T12:00');
-        setLaunchMessage(data.launchMessage ?? 'Campus Connect is currently under scheduled maintenance.');
+        setLaunchMessage(data.launchMessage ?? 'SwipeMates is currently under scheduled maintenance.');
       }
     }, (err: any) => {
       console.error("Failed to sync system configuration in admin console:", err);
@@ -200,6 +210,7 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
 
     setIsLoading(true);
     setDataError('');
+    setSyncStatus('connecting');
 
     const waitlistRef = collection(db, 'waitlist');
     const q = query(waitlistRef, orderBy('joinedAt', 'desc'));
@@ -218,20 +229,25 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
           joinedAt: data.joinedAt,
           referralCode: data.referralCode || '',
           referrerUid: data.referrerUid || '',
+          status: data.status || 'pending',
+          approvedAt: data.approvedAt || null,
         });
       });
       setWaitlistData(records);
       setIsLoading(false);
       setDataError('');
+      setSyncStatus('synced');
     }, (err: any) => {
       console.error('Firestore real-time sync failed:', err);
       setDataError(`Active Registry Sync Interrupted: ${err.message || 'Permission Denied'}`);
       setIsLoading(false);
+      setSyncStatus('error');
       handleFirestoreError(err, 'list', 'waitlist');
     });
 
     return () => {
       unsubscribe();
+      setSyncStatus('disconnected');
     };
   }, [isAuthenticated, refreshCount]);
 
@@ -269,6 +285,97 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
       handleFirestoreError(err, 'delete', `waitlist/${id}`);
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleApproveEntry = async (item: WaitlistRegistration) => {
+    setApprovingId(item.uid);
+    try {
+      // 1. Update status and approvedAt in Firestore waitlist collection
+      const docRef = doc(db, 'waitlist', item.uid);
+      await updateDoc(docRef, {
+        status: 'approved',
+        approvedAt: new Date()
+      });
+
+      // 2. Automatically dispatch approval email via backend API
+      const response = await fetch('/api/send-approval-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: item.email,
+          fullName: item.fullName,
+          collegeName: item.collegeName,
+          course: item.course,
+          graduationYear: item.graduationYear
+        })
+      });
+
+      if (!response.ok) {
+        console.warn('Backend approval email API returned non-OK status code');
+      } else {
+        console.log(`Successfully sent automatic approval email to: ${item.email}`);
+      }
+    } catch (err: any) {
+      console.error('Failed to approve waitlist entry:', err);
+      handleFirestoreError(err, 'write', `waitlist/${item.uid}`);
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const runDiagnostics = async () => {
+    setIsDiagnosing(true);
+    setDiagnosticLogs([]);
+    const logs: string[] = [];
+
+    const addLog = (message: string) => {
+      const timestamp = new Date().toLocaleTimeString();
+      logs.push(`[${timestamp}] ${message}`);
+      setDiagnosticLogs([...logs]);
+    };
+
+    addLog('DIAGNOSTICS STARTED: Commencing comprehensive collection integrity check...');
+
+    try {
+      // 1. Check browser storage & Firebase client state
+      addLog(`Client Origin Domain: ${window.location.origin}`);
+      addLog(`Target Firebase Project ID: ${db.app.options.projectId || 'N/A'}`);
+
+      // 2. Test reading 'waitlist' collection (limit 1)
+      addLog('Step 1/3: Verifying READ permission on waitlist collection...');
+      const testQuery = query(collection(db, 'waitlist'), limit(1));
+      const testSnap = await getDocs(testQuery);
+      addLog(`READ Check: SUCCESS. Retrieved ${testSnap.size} document preview(s). Read access is fully active.`);
+
+      // 3. Test writing/updating to 'waitlist' collection
+      addLog('Step 2/3: Verifying WRITE/CREATE permission rules on waitlist collection...');
+      const docRef = doc(db, 'waitlist', 'diagnostic_test_temp_doc');
+      await setDoc(docRef, {
+        fullName: 'Diagnostic Connection Test',
+        email: 'diagnostics@swipemates.app',
+        collegeName: 'Diagnostic Academy',
+        course: 'System Testing',
+        graduationYear: '2026',
+        joinedAt: new Date().getTime(),
+        status: 'pending'
+      }, { merge: true });
+      addLog('WRITE Check (Merge/Set): SUCCESS. Test record saved successfully.');
+
+      // 4. Clean up test document
+      addLog('Step 3/3: Clearing up diagnostic footprints...');
+      await deleteDoc(docRef);
+      addLog('CLEANUP Check (Delete): SUCCESS. Diagnostic footprint cleared cleanly from database.');
+      addLog('🎉 SYSTEM INTEGRITY CHECK COMPLETE: Both READ and WRITE transactions are fully operational!');
+    } catch (error: any) {
+      console.error('Diagnostics execution failed:', error);
+      addLog(`❌ TRANSACTION CRITICAL ERROR: ${error.message || 'Permission Denied'}`);
+      addLog('DIAGNOSIS: Database permission rules (firestore.rules) or network configuration might be preventing operations.');
+      addLog('SUGGESTION: Verify that the Firestore Security Rules allow read/delete on the waitlist collection, and that your client domain is allowed.');
+    } finally {
+      setIsDiagnosing(false);
     }
   };
 
@@ -628,18 +735,44 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="bg-[#1A1108] p-5 rounded-[22px] shadow-lg flex items-center gap-4 text-white"
+              className={`p-5 rounded-[22px] shadow-lg flex items-center gap-4 text-white transition-all ${
+                syncStatus === 'synced' ? 'bg-[#1A1108]' :
+                syncStatus === 'connecting' ? 'bg-[#1A1108]/90' :
+                syncStatus === 'error' ? 'bg-red-950 border border-red-700/50' : 'bg-neutral-900'
+              }`}
             >
               <div className="w-12 h-12 bg-[#C9A227]/20 text-[#C9A227] rounded-2xl flex items-center justify-center">
                 <Sparkles className="w-6 h-6" />
               </div>
               <div>
                 <p className="text-[9px] font-black tracking-widest text-neutral-400 uppercase font-mono">
-                  Cloud Connection
+                  Database Connection
                 </p>
-                <h3 className="text-sm font-bold text-[#C9A227] mt-1 flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                  PERSISTENT LIVE
+                <h3 className="text-xs font-bold text-[#C9A227] mt-1 flex items-center gap-1.5 uppercase font-sans">
+                  {syncStatus === 'synced' && (
+                    <>
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      LIVE / SYNCED
+                    </>
+                  )}
+                  {syncStatus === 'connecting' && (
+                    <>
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+                      CONNECTING...
+                    </>
+                  )}
+                  {syncStatus === 'error' && (
+                    <>
+                      <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-bounce" />
+                      SYNC ERROR
+                    </>
+                  )}
+                  {syncStatus === 'disconnected' && (
+                    <>
+                      <span className="w-2.5 h-2.5 rounded-full bg-neutral-500" />
+                      DISCONNECTED
+                    </>
+                  )}
                 </h3>
               </div>
             </motion.div>
@@ -813,6 +946,165 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
             </motion.div>
           </div>
 
+          {/* SYSTEM HEALTH & FIREBASE CONNECTION DIAGNOSTICS */}
+          <motion.div 
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.18 }}
+            className="bg-white/75 backdrop-blur-md border border-[#1A1108]/10 rounded-[28px] p-6 mb-8 shadow-sm"
+          >
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-[#1A1108]/5 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-[#C9A227]/10 text-[#C9A227] rounded-xl">
+                  <Terminal className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-display text-sm uppercase tracking-tight text-[#1A1108]">
+                    Waitlist Database Health & Sync Diagnostics
+                  </h3>
+                  <p className="text-[10px] text-[#1A1108]/60 font-mono mt-0.5">
+                    Real-time transaction monitors, security rules verification, and diagnostic logging
+                  </p>
+                </div>
+              </div>
+
+              {/* Status indicator badges */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[9px] font-bold uppercase font-mono tracking-wider text-[#1A1108]/40">
+                  Live Status:
+                </span>
+                {syncStatus === 'synced' ? (
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-black px-3 py-1.5 rounded-full border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    LIVE / SYNCED
+                  </span>
+                ) : syncStatus === 'connecting' ? (
+                  <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 text-[10px] font-black px-3 py-1.5 rounded-full border border-amber-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                    CONNECTING...
+                  </span>
+                ) : syncStatus === 'error' ? (
+                  <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 text-[10px] font-black px-3 py-1.5 rounded-full border border-red-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-bounce" />
+                    SYNC FAILURE
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 bg-neutral-100 text-neutral-700 text-[10px] font-black px-3 py-1.5 rounded-full border border-neutral-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" />
+                    DISCONNECTED
+                  </span>
+                )}
+
+                <button
+                  onClick={runDiagnostics}
+                  disabled={isDiagnosing}
+                  className="inline-flex items-center gap-1.5 bg-[#C9A227] hover:bg-[#b59122] disabled:opacity-50 text-[#1A1108] text-[10px] font-black uppercase tracking-wider px-3.5 py-1.5 rounded-full border border-[#1A1108]/15 shadow-sm transition-all cursor-pointer font-sans"
+                >
+                  {isDiagnosing ? (
+                    <>
+                      <span className="w-2.5 h-2.5 border-2 border-t-transparent border-[#1A1108] rounded-full animate-spin"></span>
+                      Diagnosing...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-3 h-3" />
+                      Run Diagnostics Check
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left side: Error Log / Warnings */}
+              <div className="bg-[#1A1108]/5 border border-[#1A1108]/10 rounded-2xl p-4 flex flex-col justify-between text-left">
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-[#1A1108]/75 font-sans mb-2 flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                    Active Error Logs & Security Alerts
+                  </h4>
+                  <p className="text-[10px] text-[#1A1108]/60 font-sans mb-3">
+                    Captures immediate unhandled errors, write rejections, or snapshot stream failures on the 'waitlist' collection.
+                  </p>
+
+                  <div className="bg-neutral-900 rounded-xl p-3 h-32 overflow-y-auto font-mono text-[10px] text-red-400 border border-neutral-800 space-y-1.5">
+                    {dataError ? (
+                      <div className="flex items-start gap-1.5 leading-relaxed">
+                        <span className="text-red-500 font-bold">[SYNC_FAIL]:</span>
+                        <span>{dataError}</span>
+                      </div>
+                    ) : null}
+                    
+                    {syncStatus === 'error' && (
+                      <div className="flex items-start gap-1.5 leading-relaxed">
+                        <span className="text-amber-500 font-bold">[WARNING]:</span>
+                        <span>Security rules (firestore.rules) might restrict active connections. Run diagnostics to probe.</span>
+                      </div>
+                    )}
+
+                    {!dataError && syncStatus !== 'error' ? (
+                      <div className="text-neutral-500 italic flex items-center justify-center h-full">
+                        No connection warnings or error logs detected. System stream is healthy.
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-3 text-[9px] text-[#1A1108]/40 font-mono flex items-center justify-between">
+                  <span>Stream target: Firestore //waitlist/</span>
+                  <span>Auto-updated live</span>
+                </div>
+              </div>
+
+              {/* Right side: Connection Status indicators & Diagnostics output */}
+              <div className="bg-[#1A1108] border border-neutral-800 rounded-2xl p-4 flex flex-col justify-between text-white">
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-[#C9A227] font-sans mb-2 flex items-center gap-1.5">
+                    <Terminal className="w-3.5 h-3.5" />
+                    Interactive Integrity Probe Output
+                  </h4>
+                  <p className="text-[10px] text-neutral-400 font-sans mb-3">
+                    Probes real-time read, write, and delete permissions against your security rules policy.
+                  </p>
+
+                  <div className="bg-neutral-950 rounded-xl p-3 h-32 overflow-y-auto font-mono text-[10px] text-emerald-400 border border-neutral-800 space-y-1">
+                    {diagnosticLogs.length > 0 ? (
+                      diagnosticLogs.map((log, index) => {
+                        const isError = log.includes('❌') || log.includes('ERROR');
+                        const isSuccess = log.includes('🎉') || log.includes('SUCCESS');
+                        return (
+                          <div 
+                            key={index} 
+                            className={`leading-relaxed ${
+                              isError ? 'text-red-400 font-semibold' : isSuccess ? 'text-emerald-300 font-bold' : 'text-neutral-300'
+                            }`}
+                          >
+                            {log}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-neutral-500 italic flex flex-col items-center justify-center h-full gap-2">
+                        <span>No diagnostics executed yet.</span>
+                        <button
+                          onClick={runDiagnostics}
+                          className="bg-[#C9A227] text-[#1A1108] font-sans font-bold text-[9px] px-2.5 py-1 rounded-md uppercase hover:bg-white transition-all cursor-pointer"
+                        >
+                          Trigger Quick Scan
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-3 text-[9px] text-neutral-500 font-mono flex items-center justify-between">
+                  <span>Isolated Sandbox Verification</span>
+                  <span>Click scan to verify rules</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
           {/* Filtering and Query Control Center */}
           <div className="bg-white/75 backdrop-blur-md border border-[#1A1108]/10 rounded-[28px] p-4 sm:p-6 mb-8 shadow-sm flex flex-col md:flex-row items-center gap-4">
             
@@ -942,8 +1234,9 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
                       <th className="p-5 font-condensed text-[10px] font-black tracking-widest text-[#1A1108]/60 uppercase">Course or Major</th>
                       <th className="p-5 font-condensed text-[10px] font-black tracking-widest text-[#1A1108]/60 uppercase">Year</th>
                       <th className="p-5 font-condensed text-[10px] font-black tracking-widest text-[#1A1108]/60 uppercase">Referrals</th>
-                      <th className="p-5 font-condensed text-[10px] font-black tracking-widest text-[#1A1108]/60 uppercase text-center">Registration Time</th>
-                      <th className="p-5 font-condensed text-[10px] font-black tracking-widest text-[#1A1108]/60 uppercase text-right">Actions</th>
+                      <th className="p-5 font-condensed text-[10px] font-black tracking-widest text-[#1A1108]/60 uppercase text-center font-sans">Registration Time</th>
+                      <th className="p-5 font-condensed text-[10px] font-black tracking-widest text-[#1A1108]/60 uppercase text-center font-sans">Status</th>
+                      <th className="p-5 font-condensed text-[10px] font-black tracking-widest text-[#1A1108]/60 uppercase text-right font-sans">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#1A1108]/10">
@@ -999,6 +1292,28 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
                           </td>
                           <td className="p-5 text-center text-xs font-mono text-neutral-500">
                             {formatJoinedAt(item.joinedAt)}
+                          </td>
+                          <td className="p-5 text-center">
+                            {item.status === 'approved' ? (
+                              <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-full border border-emerald-200">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                Approved
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleApproveEntry(item)}
+                                disabled={approvingId === item.uid}
+                                className="inline-flex items-center gap-1.5 bg-[#C9A227] hover:bg-[#a6841b] disabled:bg-neutral-150 text-[#1A1108] text-[10px] font-black tracking-wider uppercase px-4 py-1.5 rounded-full transition-all cursor-pointer border border-[#1A1108]/15 shadow-sm font-sans"
+                                title="Approve student and send confirmation email"
+                              >
+                                {approvingId === item.uid ? (
+                                  <span className="w-3 h-3 border-2 border-t-transparent border-[#1A1108] rounded-full animate-spin"></span>
+                                ) : (
+                                  <CheckCircle2 className="w-3 h-3" />
+                                )}
+                                Approve
+                              </button>
+                            )}
                           </td>
                           <td className="p-5 text-right">
                             {deleteConfirmId === item.uid ? (
@@ -1096,21 +1411,43 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
                         )}
                       </div>
 
-                      {/* Deletion Interface inside Card */}
-                      <div className="mt-2 pt-3 border-t border-[#1A1108]/5 flex justify-end">
+                      {/* Deletion & Approval Interface inside Card */}
+                      <div className="mt-2 pt-3 border-t border-[#1A1108]/5 flex justify-between items-center gap-2">
+                        <div>
+                          {item.status === 'approved' ? (
+                            <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2.5 py-1.5 rounded-full border border-emerald-150 font-sans">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              Approved
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleApproveEntry(item)}
+                              disabled={approvingId === item.uid}
+                              className="inline-flex items-center gap-1.5 bg-[#C9A227] hover:bg-[#b08d20] disabled:bg-neutral-150 text-[#1A1108] text-[10px] font-black tracking-wider uppercase px-3 py-1.5 rounded-full transition-all cursor-pointer border border-[#1A1108]/10 shadow-sm font-sans"
+                            >
+                              {approvingId === item.uid ? (
+                                <span className="w-2.5 h-2.5 border-2 border-t-transparent border-[#1A1108] rounded-full animate-spin"></span>
+                              ) : (
+                                <CheckCircle2 className="w-3 h-3" />
+                              )}
+                              Approve
+                            </button>
+                          )}
+                        </div>
+
                         {deleteConfirmId === item.uid ? (
-                          <div className="flex items-center gap-2 bg-red-50 p-1.5 rounded-xl border border-red-100">
-                            <span className="text-[10px] font-black text-red-600 uppercase tracking-widest px-2 animate-pulse">Delete?</span>
+                          <div className="flex items-center gap-1.5 bg-red-50 p-1 rounded-xl border border-red-100">
+                            <span className="text-[9px] font-black text-red-600 uppercase tracking-widest px-1 animate-pulse font-sans">Delete?</span>
                             <button
                               onClick={() => handleDeleteEntry(item.uid)}
                               disabled={deletingId === item.uid}
-                              className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+                              className="bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-md transition-all font-sans"
                             >
                               {deletingId === item.uid ? '...' : 'YES'}
                             </button>
                             <button
                               onClick={() => setDeleteConfirmId(null)}
-                              className="bg-white text-neutral-700 hover:bg-neutral-100 text-xs font-bold px-3 py-1.5 rounded-lg border border-neutral-200 transition-all"
+                              className="bg-white text-neutral-700 hover:bg-neutral-100 text-[10px] font-bold px-2.5 py-1 rounded-md border border-neutral-250 transition-all font-sans"
                             >
                               NO
                             </button>
@@ -1118,10 +1455,10 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
                         ) : (
                           <button
                             onClick={() => setDeleteConfirmId(item.uid)}
-                            className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-neutral-400 hover:text-red-700 bg-neutral-50 hover:bg-red-50/50 border border-neutral-150 px-3.5 py-2 rounded-xl transition-all cursor-pointer"
+                            className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400 hover:text-red-700 bg-neutral-50 hover:bg-red-50/50 border border-neutral-150 px-2.5 py-1.5 rounded-xl transition-all cursor-pointer font-sans"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Delete Record
+                            <Trash2 className="w-3 h-3" />
+                            Delete
                           </button>
                         )}
                       </div>
@@ -1224,14 +1561,14 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
                   </p>
                   <div className="bg-white border border-[#1A1108]/10 rounded-xl max-h-[200px] overflow-y-auto p-4 text-left font-sans shadow-inner select-all">
                     <div className="border-b pb-2 mb-2">
-                      <p className="text-[10px] text-neutral-500 font-mono m-0"><strong>From:</strong> Campus Connect Support &lt;welcome@campusconnect.edu&gt;</p>
+                      <p className="text-[10px] text-neutral-500 font-mono m-0"><strong>From:</strong> SwipeMates Support &lt;welcome@swipemates.app&gt;</p>
                       <p className="text-[10px] text-neutral-500 font-mono m-0"><strong>To:</strong> {waitlistData.find(m => m.uid === selectedSimulatorStudentId)?.email}</p>
-                      <p className="text-[10px] text-neutral-500 font-mono m-0"><strong>Subject:</strong> 🎒 You're on the list, {waitlistData.find(m => m.uid === selectedSimulatorStudentId)?.fullName}! Welcome to Campus Connect</p>
+                      <p className="text-[10px] text-neutral-500 font-mono m-0"><strong>Subject:</strong> 🎒 You're on the list, {waitlistData.find(m => m.uid === selectedSimulatorStudentId)?.fullName}! Welcome to SwipeMates</p>
                     </div>
                     <div className="font-sans">
                       <h2 className="text-sm font-black text-[#1A1108] m-0 mb-1.5 uppercase">🎒 Welcome to the Inner Circle, {waitlistData.find(m => m.uid === selectedSimulatorStudentId)?.fullName}!</h2>
                       <p className="text-[11px] text-neutral-700 m-0 leading-relaxed mb-2">
-                        Thank you for joining the Campus Connect waitlist. We are bringing college students together in a brand new way, and you've officially claimed your spot.
+                        Thank you for joining the SwipeMates waitlist. We are bringing college students together in a brand new way, and you've officially claimed your spot.
                       </p>
                       <div className="bg-[#F4EBD7] p-2.5 rounded-lg border border-[#1A1108]/10 text-[10px] mb-2 leading-relaxed">
                         <p className="m-0"><strong>University:</strong> {waitlistData.find(m => m.uid === selectedSimulatorStudentId)?.collegeName}</p>
@@ -1334,13 +1671,13 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
                   {/* Mail Client Header Block */}
                   <div className="bg-[#1A1108]/5 border-b-2 border-[#1A1108] p-4 text-[11px] font-sans text-left space-y-1.5">
                     <p className="m-0 text-neutral-500">
-                      <strong className="text-neutral-800">From:</strong> Campus Connect Support &lt;welcome@campusconnect.edu&gt;
+                      <strong className="text-neutral-800">From:</strong> SwipeMates Support &lt;welcome@swipemates.app&gt;
                     </p>
                     <p className="m-0 text-neutral-500">
                       <strong className="text-neutral-800">To:</strong> verified-student@university.edu
                     </p>
                     <p className="m-0 text-neutral-500">
-                      <strong className="text-neutral-800">Subject:</strong> 🎒 You're on the list! Welcome to Campus Connect
+                      <strong className="text-neutral-800">Subject:</strong> 🎒 You're on the list! Welcome to SwipeMates
                     </p>
                   </div>
 
@@ -1408,7 +1745,7 @@ export default function AdminPanel({ onBackToLanding }: AdminPanelProps) {
 
                     {/* Footer Credentials */}
                     <div className="border-t pt-6 text-neutral-400 font-mono space-y-1">
-                      <p className="m-0 font-bold uppercase tracking-wider text-[#C9A227] text-[10px]">Campus Connect Launch Directory</p>
+                      <p className="m-0 font-bold uppercase tracking-wider text-[#C9A227] text-[10px]">SwipeMates Launch Directory</p>
                       <p className="m-0 text-[9px] text-neutral-500">Mumbai • Delhi • Bangalore • Pune</p>
                       <p className="m-0 text-neutral-500 text-[9px] mt-2 leading-relaxed">To prevent service degradation, secure tokens are mapped only to registered university mail credentials.</p>
                     </div>

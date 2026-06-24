@@ -19,6 +19,8 @@ export interface WaitlistRegistration {
   referralEmail?: string;
   referralEmails?: string[];
   referralsCount?: number;
+  status?: 'pending' | 'approved' | 'rejected';
+  approvedAt?: any;
 }
 
 export type OperationType = 'create' | 'update' | 'delete' | 'list' | 'get' | 'write';

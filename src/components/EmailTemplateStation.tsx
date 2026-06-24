@@ -18,7 +18,7 @@ export default function EmailTemplateStation({ user, waitlistRecord, myWaitlistN
   const [simulatedSent, setSimulatedSent] = useState(false);
   
   // Custom draft edits
-  const [customName, setCustomName] = useState(user.displayName || 'Campus Connect Scholar');
+  const [customName, setCustomName] = useState(user.displayName || 'SwipeMates Scholar');
   const [recipientEmail, setRecipientEmail] = useState(activeTab === 'welcome' ? user.email || '' : '');
 
   const referralLink = `${window.location.origin}?ref=${user.uid}`;
@@ -38,11 +38,11 @@ export default function EmailTemplateStation({ user, waitlistRecord, myWaitlistN
   const getSubject = (): string => {
     switch (activeTab) {
       case 'welcome':
-        return `[Campus Connect] Spot #${myWaitlistNumber} Secured! Welcome to the Circle 🎓`;
+        return `[SwipeMates] Spot #${myWaitlistNumber} Secured! Welcome to the Circle 🎓`;
       case 'invite':
-        return `🎓 Class invitation: Skip the waitlist on Campus Connect!`;
+        return `🎓 Class invitation: Skip the waitlist on SwipeMates!`;
       case 'beta_codes':
-        return `🔥 EARLY ACCESS SECURED: Your exclusive Campus Connect Beta Code`;
+        return `🔥 EARLY ACCESS SECURED: Your exclusive SwipeMates Beta Code`;
     }
   };
 
@@ -52,7 +52,7 @@ export default function EmailTemplateStation({ user, waitlistRecord, myWaitlistN
       case 'welcome':
         return `Hey ${customName},
 
-You're officially locked on the list for Campus Connect!
+You're officially locked on the list for SwipeMates!
 
 ${divider}
 🎫 MEMBER ID: ${user.uid.slice(0, 12).toUpperCase()}
@@ -69,12 +69,12 @@ Share your unique referral link with classmates. Each friend who signs up skips 
 Your link: ${referralLink}
 
 Stay outstanding,
-The Campus Connect Launch Crew`;
+The SwipeMates Launch Crew`;
 
       case 'invite':
         return `Hey there!
 
-I just secured my spot on Campus Connect—the exclusive social network landing in ${waitlistRecord.collegeName} for matching class cliques, event pools, and transient rides.
+I just secured my spot on SwipeMates—the exclusive social network landing in ${waitlistRecord.collegeName} for matching class cliques, event pools, and transient rides.
 
 They are letting colleges onboard in priority order based on waitlist size. If you register using my direct referral link, I jump 500 spots and you get instant launch queue immunity!
 
@@ -120,7 +120,7 @@ The Dev Sandbox Group`;
             <div className="bg-white p-5 border border-t-0 border-[#1A1108]/15 rounded-b-xl flex flex-col gap-4 text-left">
               <p>Hey <strong className="text-[#1A1108]">{customName}</strong>,</p>
               
-              <p>You're officially locked on the launch database for <strong className="text-[#1A1108]">Campus Connect</strong>!</p>
+              <p>You're officially locked on the launch database for <strong className="text-[#1A1108]">SwipeMates</strong>!</p>
               
               <div className="bg-[#1A1108]/5 border border-[#1A1108]/10 p-3 rounded-xl font-mono text-[10px] grid grid-cols-2 gap-2 text-[#1A1108]/75">
                 <div>
@@ -147,7 +147,7 @@ The Dev Sandbox Group`;
 
               <div className="text-[10px] text-[#1A1108]/50 mt-2">
                 <p>Stay outstanding,</p>
-                <p className="font-bold">The Campus Connect Launch Crew</p>
+                <p className="font-bold">The SwipeMates Launch Crew</p>
               </div>
             </div>
           </div>
@@ -167,7 +167,7 @@ The Dev Sandbox Group`;
             <div className="bg-white p-5 border border-t-0 border-[#1A1108]/15 rounded-b-xl flex flex-col gap-4 text-left">
               <p>Hey classmate,</p>
               
-              <p>I just secured my spot on <strong className="text-[#1A1108]">Campus Connect</strong>—the exclusive social network landing in <em className="underline not-italic">{waitlistRecord.collegeName}</em> for matching class cliques, event pools, and transit pools.</p>
+              <p>I just secured my spot on <strong className="text-[#1A1108]">SwipeMates</strong>—the exclusive social network landing in <em className="underline not-italic">{waitlistRecord.collegeName}</em> for matching class cliques, event pools, and transit pools.</p>
 
               <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-xl text-center">
                 <span className="text-[10px] font-black tracking-wider text-amber-700 block mb-1">🔥 SKIP THE WAITLIST</span>
@@ -178,7 +178,7 @@ The Dev Sandbox Group`;
                   rel="noreferrer"
                   className="inline-block bg-[#1A1108] hover:bg-[#1A1108]/90 text-[#F4EBD7] text-[10px] font-black uppercase px-4 py-2 rounded-xl transition-all"
                 >
-                  Join Campus Connect List 🚀
+                  Join SwipeMates List 🚀
                 </a>
               </div>
 

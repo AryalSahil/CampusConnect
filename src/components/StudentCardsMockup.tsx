@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
 import { ChevronLeft, ChevronRight, Heart, X, MessageSquare, ShieldCheck, Sparkles, Star } from 'lucide-react';
 
 import avatar1 from '../assets/images/indian_student_avatar_1782091046623.jpg';
@@ -118,8 +118,26 @@ export default function StudentCardsMockup() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showMatch, setShowMatch] = useState(false);
   const [matchedStudent, setMatchedStudent] = useState<Student | null>(null);
+  const [exitDirection, setExitDirection] = useState<'left' | 'right' | null>(null);
 
   const activeStudent = students[currentIndex];
+
+  const x = useMotionValue(0);
+  const rotate = useTransform(x, [-150, 150], [-15, 15]);
+  const opacity = useTransform(x, [-150, -100, 0, 100, 150], [0.5, 1, 1, 1, 0.5]);
+
+  useEffect(() => {
+    x.set(0);
+  }, [currentIndex, x]);
+
+  const handleDragEnd = (event: any, info: any) => {
+    const threshold = 100;
+    if (info.offset.x > threshold) {
+      handleSwipe('right');
+    } else if (info.offset.x < -threshold) {
+      handleSwipe('left');
+    }
+  };
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>, studentId: number) => {
     const backup = localFallbacks[studentId];
@@ -133,6 +151,7 @@ export default function StudentCardsMockup() {
 
   const handleSwipe = (direction: 'left' | 'right') => {
     if (currentIndex >= students.length) return;
+    setExitDirection(direction);
     
     if (direction === 'right') {
       // 50% chance of triggering Match for interactivity!
@@ -181,20 +200,24 @@ export default function StudentCardsMockup() {
 
           {/* Cards Stack */}
           <div className="relative flex-1 w-full flex items-center justify-center overflow-hidden py-1">
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence mode="popLayout" custom={exitDirection}>
               {currentIndex < students.length ? (
                 <motion.div
                   key={activeStudent.id}
+                  custom={exitDirection}
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  onDragEnd={handleDragEnd}
                   initial={{ scale: 0.9, y: 15, rotate: currentIndex % 2 === 0 ? -1 : 1, opacity: 0.5 }}
                   animate={{ scale: 1, y: 0, rotate: 0, opacity: 1 }}
                   exit={(custom) => ({
-                    x: custom === 'left' ? -350 : 3550,
+                    x: custom === 'left' ? -350 : 350,
                     rotate: custom === 'left' ? -25 : 25,
                     opacity: 0,
                     transition: { duration: 0.3 }
                   })}
-                  className="absolute inset-0 bg-[#F4EBD7] rounded-[28px] overflow-hidden border-2 border-[#1A1108] shadow-[0_8px_16px_rgba(0,0,0,0.3)] flex flex-col justify-between"
-                  style={{ y: 0 }}
+                  className="absolute inset-0 bg-[#F4EBD7] rounded-[28px] overflow-hidden border-2 border-[#1A1108] shadow-[0_8px_16px_rgba(0,0,0,0.3)] flex flex-col justify-between cursor-grab active:cursor-grabbing"
+                  style={{ x, rotate, opacity }}
                 >
                   {/* Student Photo */}
                   <div className="relative w-full h-[55%] overflow-hidden bg-neutral-300">

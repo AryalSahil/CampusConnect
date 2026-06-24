@@ -22,6 +22,8 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
   const [course, setCourse] = useState('');
   const [graduationYear, setGraduationYear] = useState('2027');
   const [referralEmail, setReferralEmail] = useState('');
+  const [universityEmail, setUniversityEmail] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Additional Referral Fields (for Screen 3)
   const [newReferralEmail, setNewReferralEmail] = useState('');
@@ -89,6 +91,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
+        setUniversityEmail(currentUser.email || '');
         unsubWaitlist = checkWaitlistStatus(currentUser);
       } else {
         if (unsubWaitlist) {
@@ -126,6 +129,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
         handleFirestoreError(err, 'write', userPath);
       }
 
+      setUniversityEmail(currentUser.email || '');
       await checkWaitlistStatus(currentUser);
     } catch (err: any) {
       console.error('Sign-In Error:', err);
@@ -162,6 +166,16 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
       return;
     }
 
+    const finalUniversityEmail = universityEmail.trim().toLowerCase();
+    if (!finalUniversityEmail) {
+      setFormError('Please enter your email address.');
+      return;
+    }
+    if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,10}$/i.test(finalUniversityEmail)) {
+      setFormError('Please enter a valid email address.');
+      return;
+    }
+
     const finalReferralEmail = referralEmail.trim().toLowerCase();
     if (finalReferralEmail) {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(finalReferralEmail)) {
@@ -181,12 +195,12 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
     // Extract referral code from URL if present
     const urlParams = new URLSearchParams(window.location.search);
     const referrerUid = urlParams.get('ref') || undefined;
-    const referralCode = `CC-${user.uid.slice(0, 5).toUpperCase()}`;
+    const referralCode = `SM-${user.uid.slice(0, 5).toUpperCase()}`;
 
     const registrationPayload = {
       uid: user.uid,
-      fullName: user.displayName || 'Campus Connect Scholar',
-      email: user.email || '',
+      fullName: user.displayName || 'SwipeMates Scholar',
+      email: finalUniversityEmail,
       collegeName: collegeName.trim(),
       course: course.trim(),
       graduationYear: graduationYear,
@@ -195,6 +209,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
       referralEmail: finalReferralEmail || null,
       referralEmails: finalReferralEmail ? [finalReferralEmail] : [],
       referralsCount: finalReferralEmail ? 1 : 0,
+      status: 'pending',
       ...(referrerUid ? { referrerUid } : {})
     };
 
@@ -213,8 +228,12 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
         referrerUid,
         referralEmail: finalReferralEmail || undefined,
         referralEmails: finalReferralEmail ? [finalReferralEmail] : [],
-        referralsCount: finalReferralEmail ? 1 : 0
+        referralsCount: finalReferralEmail ? 1 : 0,
+        status: 'pending'
       });
+
+      // Show interactive confirmation modal immediately!
+      setShowSuccessModal(true);
 
       // Trigger premium welcome email via custom full-stack backend
       fetch('/api/send-welcome-email', {
@@ -466,7 +485,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
                 Complete Your Spot Reservation
               </h3>
               <p className="text-xs text-[#1A1108]/70">
-                You're authenticated as <span className="font-bold">{user.email}</span>. Fill outer campus coordinates to compute your position:
+                You're authenticated via Google. Please provide your email address below to compute your placement:
               </p>
             </div>
 
@@ -475,6 +494,26 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
                 {formError}
               </div>
             )}
+
+            {/* Input University Email */}
+            <div className="flex flex-col gap-1 text-left">
+              <label htmlFor="universityEmail" className="font-condensed text-[10px] font-black tracking-widest text-[#1A1108]/60 uppercase">
+                Email Address *
+              </label>
+              <input
+                id="universityEmail"
+                type="email"
+                placeholder="you@example.com or you@college.edu"
+                value={universityEmail}
+                onChange={(e) => setUniversityEmail(e.target.value)}
+                autoComplete="off"
+                required
+                className="w-full bg-transparent border-b border-[#1A1108]/20 pb-2 text-sm font-medium text-[#1A1108] placeholder-[#1A1108]/30 outline-none focus:border-[#C9A227] transition-all"
+              />
+              <p className="text-[9px] text-[#1A1108]/50 leading-normal">
+                Provide your preferred or college-assigned email address to reserve your spot.
+              </p>
+            </div>
 
             {/* Input College */}
             <div className="flex flex-col gap-1 text-left">
@@ -545,7 +584,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
               <input
                 id="referralEmail"
                 type="email"
-                placeholder="friend@college.edu.in"
+                placeholder="friend@example.com"
                 value={referralEmail}
                 onChange={(e) => setReferralEmail(e.target.value)}
                 autoComplete="off"
@@ -680,7 +719,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
                 <div className="flex gap-2">
                   <input
                     type="email"
-                    placeholder="classmate@college.edu.in"
+                    placeholder="classmate@example.com"
                     value={newReferralEmail}
                     onChange={(e) => setNewReferralEmail(e.target.value)}
                     required
@@ -747,6 +786,68 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
             </div>
 
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Interactive Confirmation Modal */}
+      <AnimatePresence>
+        {showSuccessModal && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSuccessModal(false)}
+              className="absolute inset-0 bg-[#1A1108]/85 backdrop-blur-sm"
+            />
+
+            {/* Modal Box */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-[#F4EBD7] border-4 border-[#1A1108] p-6 sm:p-8 rounded-[36px] shadow-[8px_8px_0px_0px_#1A1108] text-center z-10 flex flex-col items-center"
+            >
+              {/* Success Icon */}
+              <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border-2 border-emerald-500 flex items-center justify-center text-emerald-600 mb-4 animate-bounce">
+                <CheckCircle2 className="w-10 h-10" />
+              </div>
+
+              <span className="font-condensed font-extrabold text-[10px] sm:text-xs tracking-widest text-[#C9A227] bg-[#1A1108] px-3.5 py-1 rounded-full mb-3 uppercase">
+                Success Confirmed
+              </span>
+
+              <h3 className="font-display text-2xl sm:text-3xl text-[#1A1108] uppercase leading-none mb-2 tracking-tight">
+                Waitlist Secured!
+              </h3>
+
+              <p className="text-xs sm:text-sm text-[#1A1108]/85 max-w-xs mb-6 leading-relaxed">
+                Your college spot was written securely to the SwipeMates database. Welcome aboard!
+              </p>
+
+              {/* Position Ticket */}
+              <div className="w-full bg-[#1A1108] text-[#F4EBD7] p-4 rounded-2xl border border-[#C9A227] mb-6 flex flex-col items-center justify-center shadow-inner">
+                <p className="font-condensed text-[10px] text-neutral-400 tracking-wider uppercase mb-1">Your Launch Position</p>
+                <span className="font-display text-2xl sm:text-3xl text-[#C9A227]">
+                  #{myWaitlistNumber.toLocaleString()}
+                </span>
+              </div>
+
+              {/* Share info */}
+              <p className="text-[10px] text-neutral-500 mb-4 font-sans uppercase tracking-wider">
+                Invite classmates to skip 500 spots!
+              </p>
+
+              {/* Close Button */}
+              <button
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full bg-[#1A1108] text-[#F4EBD7] font-bold text-xs uppercase tracking-wider py-3.5 px-6 rounded-2xl border-2 border-[#1A1108] hover:bg-[#F4EBD7] hover:text-[#1A1108] hover:shadow-[4px_4px_0px_0px_#1A1108] transition-all duration-250 cursor-pointer outline-none"
+              >
+                Let's Go!
+              </button>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
