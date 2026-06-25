@@ -19,7 +19,18 @@ function getEmailTransporter() {
   const pass = process.env.SMTP_PASSWORD;
 
   if (!pass) {
-    console.warn("⚠️ SMTP_PASSWORD is not set. Outgoing emails will be logged to terminal only or fall back to mock sandbox.");
+    console.log("ℹ️ [Email Service] Zero-Configuration Active: No SMTP_PASSWORD configured. Simulated delivery is enabled.");
+    return {
+      sendMail: async (options: any) => {
+        console.log("------------------ SIMULATED EMAIL ------------------");
+        console.log(`From: ${options.from}`);
+        console.log(`To: ${options.to}`);
+        console.log(`Subject: ${options.subject}`);
+        console.log(`Body (text): ${options.text}`);
+        console.log("-----------------------------------------------------");
+        return { messageId: `mock_msg_${Math.floor(Math.random() * 1000000)}` };
+      }
+    } as any;
   }
 
   return nodemailer.createTransport({
@@ -27,7 +38,7 @@ function getEmailTransporter() {
     port,
     auth: {
       user,
-      pass: pass || 'mock_pass'
+      pass
     }
   });
 }

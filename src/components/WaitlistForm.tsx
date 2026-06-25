@@ -40,7 +40,7 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
 
   // Form Validation and Status
   const [formError, setFormError] = useState<string | null>(null);
-  const [domainWarning, setDomainWarning] = useState<string | null>(null);
+  const [isDomainUnauthorized, setIsDomainUnauthorized] = useState(false);
 
   // Real-time listener for user's waitlist record
   const checkWaitlistStatus = (uid: string) => {
@@ -85,8 +85,9 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
     
     // Check if domain is authorized in Firebase Auth
     const status = checkDomainAuthorizationStatus();
-    if (status.warningMessage) {
-      setDomainWarning(status.warningMessage);
+    if (!status.isAuthorized) {
+      setIsDomainUnauthorized(true);
+      setIsManualMode(true);
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -433,21 +434,6 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
               </div>
             )}
 
-            {domainWarning && !formError && (
-              <div className="text-[11px] bg-amber-500/10 border border-amber-500/30 text-amber-850 font-medium px-4 py-3 rounded-xl mb-4 text-left w-full flex flex-col gap-2">
-                <p>⚠️ Firebase Authentication: This domain ({window.location.hostname}) is not yet authorized in Firebase Console.</p>
-                <button
-                  onClick={() => {
-                    setFormError(null);
-                    setIsManualMode(true);
-                  }}
-                  className="w-full text-center bg-amber-600/20 hover:bg-amber-600/30 text-amber-950 font-bold uppercase tracking-wider text-[10px] py-2 px-3 rounded-lg transition-all border border-amber-600/25 outline-none cursor-pointer"
-                >
-                  Skip Verification & Register Manually
-                </button>
-              </div>
-            )}
-
             <motion.button
               onClick={handleGoogleSignIn}
               id="google-verification-trigger"
@@ -529,27 +515,29 @@ export default function WaitlistForm({ onSuccessSubmit }: WaitlistFormProps) {
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={user ? handleSignOut : () => {
-                  setIsManualMode(false);
-                  setFullName('');
-                  setFormError(null);
-                }}
-                className="text-[#1A1108]/60 hover:text-red-600 transition-colors uppercase font-condensed text-xs font-bold flex items-center gap-1 bg-white/40 border border-[#1A1108]/15 px-2.5 py-1 rounded-full outline-none cursor-pointer"
-              >
-                {user ? (
-                  <>
-                    <LogOut className="w-3.5 h-3.5" />
-                    Sign Out
-                  </>
-                ) : (
-                  <>
-                    <ArrowRight className="w-3.5 h-3.5 rotate-180 text-amber-600" />
-                    Back
-                  </>
-                )}
-              </button>
+              {(user || !isDomainUnauthorized) && (
+                <button
+                  type="button"
+                  onClick={user ? handleSignOut : () => {
+                    setIsManualMode(false);
+                    setFullName('');
+                    setFormError(null);
+                  }}
+                  className="text-[#1A1108]/60 hover:text-red-600 transition-colors uppercase font-condensed text-xs font-bold flex items-center gap-1 bg-white/40 border border-[#1A1108]/15 px-2.5 py-1 rounded-full outline-none cursor-pointer"
+                >
+                  {user ? (
+                    <>
+                      <LogOut className="w-3.5 h-3.5" />
+                      Sign Out
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRight className="w-3.5 h-3.5 rotate-180 text-amber-600" />
+                      Back
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
             <div className="text-left">
